@@ -20,6 +20,12 @@ class PronounsSection(types.StaticSection):
     fetch_complete_list = types.BooleanAttribute('fetch_complete_list', default=True)
     """Whether to attempt fetching the complete list the web backend uses, at bot startup."""
 
+    fetch_url = types.ValidatedAttribute(
+        'fetch_url',
+        default='https://github.com/sopel-irc/pronoun-service/raw/main/src/lib/data/pronouns.tab',
+    )
+    """URL to a tab-delimited file containing supported pronoun sets."""
+
     link_base_url = types.ValidatedAttribute(
         'link_base_url', default='https://pronouns.sopel.chat')
     """Base URL for links to pronoun info.
@@ -31,19 +37,23 @@ class PronounsSection(types.StaticSection):
 
 
 def configure(settings):
-    """
-    | name | example | purpose |
-    | ---- | ------- | ------- |
-    | fetch_complete_list | True | Whether to attempt fetching the complete pronoun list from the web backend at startup. |
-    | link_base_url | https://pronouns.sopel.chat | Base URL for pronoun info links. |
-    """
     settings.define_section('pronouns', PronounsSection)
     settings.pronouns.configure_setting(
         'fetch_complete_list',
-        'Fetch the most current list of pronoun sets at startup?')
+        'Fetch the most current list of pronoun sets at startup?',
+    )
+
+    # irrelevant if not fetching the list
+    if settings.pronouns.fetch_complete_list:
+        settings.pronouns.configure_setting(
+            'fetch_url',
+            'URL from which to fetch tab-delimited pronoun sets:',
+        )
+
     settings.pronouns.configure_setting(
         'link_base_url',
-        'Base URL for pronoun info links:')
+        'Base URL for pronoun info links:',
+    )
 
 
 def setup(bot):
@@ -69,11 +79,11 @@ def setup(bot):
     if not bot.settings.pronouns.fetch_complete_list:
         return
 
-    # and now try to get the current list our fork of the backend uses
-    # (https://github.com/sopel-irc/pronoun-service)
+    # try to get the current pronoun list
+    # from https://github.com/sopel-irc/pronoun-service by default, but a
+    # fetch_url setting is available for customized setups
     try:
-        r = requests.get(
-            'https://github.com/sopel-irc/pronoun-service/raw/main/src/lib/data/pronouns.tab')
+        r = requests.get(bot.settings.pronouns.fetch_url)
         r.raise_for_status()
         fetched_pairs = _process_pronoun_sets(r.text.splitlines())
     except requests.exceptions.RequestException:
